@@ -29,7 +29,7 @@ Awesome Pizza è un sistema di gestione ordini per una pizzeria, progettato come
 
 1. **Clonare il repository**
    ```bash
-   git clone https://github.com/<tuo-username>/awesome-pizza.git
+   git clone https://github.com/giuperta/awesome-pizza.git
    cd awesome-pizza
    ```
 
