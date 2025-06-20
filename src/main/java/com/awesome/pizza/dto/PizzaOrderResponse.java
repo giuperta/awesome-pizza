@@ -11,4 +11,5 @@ public record PizzaOrderResponse(
         String customerName,
         List<PizzaType> pizzas,
         OrderStatus status
-) {}
+) {
+}

@@ -11,4 +11,5 @@ public record ApiError(
         String message,
         LocalDateTime timestamp,
         List<String> details
-) {}
+) {
+}

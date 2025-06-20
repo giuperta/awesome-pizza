@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Service layer that encapsulates business logic related to pizza orders.
@@ -70,9 +71,7 @@ public class OrderService {
      * @throws NoPendingOrdersException if no RECEIVED orders are available
      */
     public Optional<PizzaOrder> startNextOrder() {
-        return orderRepository.findAll().stream()
-                .filter(o -> o.getStatus() == OrderStatus.RECEIVED)
-                .findFirst()
+        return orderRepository.findFirstByStatusOrderByCreatedAtAsc(OrderStatus.RECEIVED)
                 .map(order -> {
                     order.setStatus(OrderStatus.IN_PREPARATION);
                     logger.info("Order {} is now IN_PREPARATION", order.getId());
@@ -86,7 +85,7 @@ public class OrderService {
      * @param id the UUID of the order to complete
      * @return true if the order was successfully updated
      * @throws OrderCompletionException if the order cannot be completed due to wrong state
-     * @throws OrderNotFoundException if the order with the given ID does not exist
+     * @throws OrderNotFoundException   if the order with the given ID does not exist
      */
     public boolean completeOrder(UUID id) {
         PizzaOrder order = orderRepository.findById(id)
@@ -108,6 +107,6 @@ public class OrderService {
      * @return a list of pizza names
      */
     public List<String> getAvailablePizzas() {
-        return List.of(PizzaType.values()).stream().map(Enum::name).toList();
+        return Stream.of(PizzaType.values()).map(Enum::name).toList();
     }
 }

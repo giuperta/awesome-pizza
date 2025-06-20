@@ -78,7 +78,7 @@ class OrderServiceTest {
         PizzaOrder order = new PizzaOrder("Customer", List.of(PizzaType.MARGHERITA));
         order.setStatus(OrderStatus.RECEIVED);
 
-        when(orderRepository.findAll()).thenReturn(List.of(order));
+        when(orderRepository.findFirstByStatusOrderByCreatedAtAsc(OrderStatus.RECEIVED)).thenReturn(Optional.of(order));
         when(orderRepository.save(any())).thenReturn(order);
 
         Optional<PizzaOrder> result = orderService.startNextOrder();

@@ -12,4 +12,5 @@ import java.util.List;
 public record OrderRequest(
         @NotBlank(message = "Customer name is required") String customerName,
         @NotEmpty(message = "At least one pizza must be selected") List<PizzaType> pizzas
-) {}
+) {
+}

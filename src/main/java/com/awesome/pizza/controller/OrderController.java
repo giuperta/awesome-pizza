@@ -52,7 +52,7 @@ public class OrderController {
 
     @Operation(summary = "Get available pizza menu")
     @ApiResponse(responseCode = "200", description = "List of available pizzas")
-    @GetMapping("/menu")
+    @GetMapping("/orders/menu")
     public ResponseEntity<List<String>> getMenu() {
         logger.debug("Fetching available pizza menu");
         return ResponseEntity.ok(orderService.getAvailablePizzas());

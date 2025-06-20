@@ -12,6 +12,7 @@ public class OrderValidation {
 
     /**
      * Validates that all pizzas in the list are valid.
+     *
      * @param pizzas list of pizza names
      * @throws InvalidPizzaException if one or more pizzas are invalid
      */

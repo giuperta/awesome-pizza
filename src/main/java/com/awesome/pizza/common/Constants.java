@@ -9,7 +9,7 @@ public final class Constants {
         // Prevent instantiation
     }
 
-    public static final String BASE_API = "/api";
+    public static final String BASE_API = "/api/v1";
     public static final String ORDER_PATH = BASE_API + "/orders";
     public static final String KITCHEN_PATH = BASE_API + "/kitchen/orders";
 
