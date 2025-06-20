@@ -8,109 +8,133 @@ import com.awesome.pizza.model.PizzaType;
 import com.awesome.pizza.repository.PizzaOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 class OrderServiceTest {
 
-    private PizzaOrderRepository repository;
-    private OrderService service;
+    @Mock
+    private PizzaOrderRepository orderRepository;
+
+    @InjectMocks
+    private OrderService orderService;
 
     @BeforeEach
-    void setup() {
-        repository = mock(PizzaOrderRepository.class);
-        service = new OrderService(repository);
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void shouldCreateOrderSuccessfully() {
-        PizzaOrder order = new PizzaOrder("Mario", List.of(PizzaType.DIAVOLA));
-        when(repository.save(any())).thenReturn(order);
+    void shouldCreateOrder() {
+        PizzaOrder mockOrder = new PizzaOrder("Mario", List.of(PizzaType.MARGHERITA));
+        when(orderRepository.save(any())).thenReturn(mockOrder);
 
-        PizzaOrder result = service.createOrder("Mario", List.of(PizzaType.DIAVOLA));
+        PizzaOrder result = orderService.createOrder("Mario", List.of(PizzaType.MARGHERITA));
 
-        assertNotNull(result);
-        assertEquals("Mario", result.getCustomerName());
-        verify(repository).save(any());
+        assertThat(result).isNotNull();
+        assertThat(result.getCustomerName()).isEqualTo("Mario");
+        verify(orderRepository).save(any());
     }
 
     @Test
-    void shouldReturnOrderById() {
+    void shouldGetOrderById() {
         UUID id = UUID.randomUUID();
-        PizzaOrder order = new PizzaOrder("Luca", List.of(PizzaType.MARGHERITA));
-        when(repository.findById(id)).thenReturn(Optional.of(order));
+        PizzaOrder order = new PizzaOrder("Luca", List.of(PizzaType.DIAVOLA));
+        when(orderRepository.findById(id)).thenReturn(Optional.of(order));
 
-        Optional<PizzaOrder> result = service.getOrder(id);
+        Optional<PizzaOrder> result = orderService.getOrder(id);
 
-        assertTrue(result.isPresent());
-        assertEquals("Luca", result.get().getCustomerName());
+        assertThat(result).isPresent();
+        assertThat(result.get().getCustomerName()).isEqualTo("Luca");
     }
 
     @Test
-    void shouldGetPendingOrders() {
-        PizzaOrder ready = new PizzaOrder("A", List.of(PizzaType.DIAVOLA));
-        ready.setStatus(OrderStatus.READY);
-        PizzaOrder pending = new PizzaOrder("B", List.of(PizzaType.MARGHERITA));
+    void shouldReturnPendingOrders() {
+        PizzaOrder o1 = new PizzaOrder("A", List.of(PizzaType.MARGHERITA));
+        o1.setStatus(OrderStatus.RECEIVED);
+        PizzaOrder o2 = new PizzaOrder("B", List.of(PizzaType.DIAVOLA));
+        o2.setStatus(OrderStatus.IN_PREPARATION);
+        PizzaOrder o3 = new PizzaOrder("C", List.of(PizzaType.MARINARA));
+        o3.setStatus(OrderStatus.READY);
 
-        when(repository.findAll()).thenReturn(List.of(ready, pending));
+        when(orderRepository.findAll()).thenReturn(List.of(o1, o2, o3));
 
-        List<PizzaOrder> result = service.getPendingOrders();
+        List<PizzaOrder> result = orderService.getPendingOrders();
 
-        assertEquals(1, result.size());
-        assertEquals("B", result.get(0).getCustomerName());
+        assertThat(result).hasSize(2);
     }
 
     @Test
     void shouldStartNextOrder() {
-        PizzaOrder order = new PizzaOrder("C", List.of(PizzaType.VEGETARIANA));
-        when(repository.findAll()).thenReturn(List.of(order));
-        when(repository.save(any())).thenReturn(order);
-
-        Optional<PizzaOrder> result = service.startNextOrder();
-
-        assertTrue(result.isPresent());
-        assertEquals(OrderStatus.IN_PREPARATION, result.get().getStatus());
-    }
-
-    @Test
-    void shouldCompleteOrderSuccessfully() {
-        UUID id = UUID.randomUUID();
-        PizzaOrder order = new PizzaOrder("D", List.of(PizzaType.QUATTRO_FORMAGGI));
-        order.setStatus(OrderStatus.IN_PREPARATION);
-        when(repository.findById(id)).thenReturn(Optional.of(order));
-
-        boolean result = service.completeOrder(id);
-
-        assertTrue(result);
-        verify(repository).save(order);
-    }
-
-    @Test
-    void shouldThrowOrderNotFound() {
-        UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.empty());
-
-        assertThrows(OrderNotFoundException.class, () -> service.completeOrder(id));
-    }
-
-    @Test
-    void shouldThrowCompletionExceptionIfWrongState() {
-        UUID id = UUID.randomUUID();
-        PizzaOrder order = new PizzaOrder("E", List.of(PizzaType.CAPRICCIOSA));
+        PizzaOrder order = new PizzaOrder("Customer", List.of(PizzaType.MARGHERITA));
         order.setStatus(OrderStatus.RECEIVED);
-        when(repository.findById(id)).thenReturn(Optional.of(order));
 
-        assertThrows(OrderCompletionException.class, () -> service.completeOrder(id));
+        when(orderRepository.findAll()).thenReturn(List.of(order));
+        when(orderRepository.save(any())).thenReturn(order);
+
+        Optional<PizzaOrder> result = orderService.startNextOrder();
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getStatus()).isEqualTo(OrderStatus.IN_PREPARATION);
     }
 
     @Test
-    void shouldReturnAllAvailablePizzas() {
-        List<String> pizzas = service.getAvailablePizzas();
-        assertTrue(pizzas.contains("MARGHERITA"));
-        assertTrue(pizzas.contains("DIAVOLA"));
+    void shouldNotStartNextOrderIfNoneReceived() {
+        PizzaOrder order = new PizzaOrder("Customer", List.of(PizzaType.MARGHERITA));
+        order.setStatus(OrderStatus.READY);
+        when(orderRepository.findAll()).thenReturn(List.of(order));
+
+        Optional<PizzaOrder> result = orderService.startNextOrder();
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void shouldCompleteOrder() {
+        UUID id = UUID.randomUUID();
+        PizzaOrder order = new PizzaOrder("Mario", List.of(PizzaType.DIAVOLA));
+        order.setStatus(OrderStatus.IN_PREPARATION);
+        when(orderRepository.findById(id)).thenReturn(Optional.of(order));
+
+        boolean result = orderService.completeOrder(id);
+
+        assertThat(result).isTrue();
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.READY);
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    void shouldThrowWhenCompletingNotInPreparation() {
+        UUID id = UUID.randomUUID();
+        PizzaOrder order = new PizzaOrder("Mario", List.of(PizzaType.DIAVOLA));
+        order.setStatus(OrderStatus.RECEIVED);
+        when(orderRepository.findById(id)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.completeOrder(id))
+                .isInstanceOf(OrderCompletionException.class);
+    }
+
+    @Test
+    void shouldThrowWhenCompletingNotFound() {
+        UUID id = UUID.randomUUID();
+        when(orderRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.completeOrder(id))
+                .isInstanceOf(OrderNotFoundException.class);
+    }
+
+    @Test
+    void shouldReturnAllPizzaTypes() {
+        List<String> result = orderService.getAvailablePizzas();
+        assertThat(result).contains("MARGHERITA", "DIAVOLA", "MARINARA");
     }
 }

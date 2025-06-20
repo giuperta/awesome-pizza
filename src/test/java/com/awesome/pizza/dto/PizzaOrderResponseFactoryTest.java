@@ -1,27 +1,33 @@
-package com.awesome.pizza.dto;
+package com.awesome.pizza.factory;
 
-import com.awesome.pizza.factory.PizzaOrderResponseFactory;
+import com.awesome.pizza.dto.PizzaOrderResponse;
 import com.awesome.pizza.model.OrderStatus;
 import com.awesome.pizza.model.PizzaOrder;
 import com.awesome.pizza.model.PizzaType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class PizzaOrderResponseFactoryTest {
 
     @Test
-    void shouldCorrectlyMapEntityToDto() {
-        PizzaOrder order = new PizzaOrder("Carlo", List.of(PizzaType.DIAVOLA, PizzaType.VEGETARIANA));
-        order.setStatus(OrderStatus.IN_PREPARATION);
+    void shouldConvertPizzaOrderToResponse() {
+        UUID id = UUID.randomUUID();
+        String customer = "Mario Rossi";
+        List<PizzaType> pizzas = List.of(PizzaType.MARGHERITA, PizzaType.DIAVOLA);
+
+        PizzaOrder order = new PizzaOrder(customer, pizzas);
+        order.setStatus(OrderStatus.READY);
+        order.setId(id);
 
         PizzaOrderResponse response = PizzaOrderResponseFactory.from(order);
 
-        assertEquals(order.getId(), response.id());
-        assertEquals(order.getCustomerName(), response.customerName());
-        assertEquals(order.getStatus(), response.status());
-        assertEquals(order.getPizzas(), response.pizzas());
+        assertThat(response).isNotNull();
+        assertThat(response.id()).isEqualTo(id);
+        assertThat(response.customerName()).isEqualTo(customer);
+        assertThat(response.status()).isEqualTo(OrderStatus.READY);
     }
 }

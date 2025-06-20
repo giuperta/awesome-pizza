@@ -9,5 +9,6 @@ public enum PizzaType {
     CAPRICCIOSA,
     QUATTRO_FORMAGGI,
     VEGETARIANA,
-    NAPOLETANA
+    NAPOLETANA,
+    MARINARA
 }

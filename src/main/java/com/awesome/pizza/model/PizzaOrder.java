@@ -1,7 +1,5 @@
 package com.awesome.pizza.model;
 
-import com.awesome.pizza.model.OrderStatus;
-import com.awesome.pizza.model.PizzaType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;

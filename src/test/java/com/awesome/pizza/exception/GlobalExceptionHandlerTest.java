@@ -1,52 +1,99 @@
 package com.awesome.pizza.exception;
 
-import com.awesome.pizza.controller.OrderController;
-import com.awesome.pizza.service.OrderService;
-import jakarta.validation.Validator;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
-import java.util.Optional;
-import java.util.UUID;
+import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-@WebMvcTest(OrderController.class)
-@Import({GlobalExceptionHandlerTest.MockConfig.class, GlobalExceptionHandlerTest.ValidatorConfig.class})
 class GlobalExceptionHandlerTest {
 
-    @TestConfiguration
-    static class MockConfig {
-        @Bean
-        public OrderService orderService() {
-            OrderService mock = Mockito.mock(OrderService.class);
-            Mockito.when(mock.getOrder(any())).thenReturn(Optional.empty());
-            return mock;
-        }
-    }
+    private GlobalExceptionHandler handler;
 
-    @TestConfiguration
-    static class ValidatorConfig {
-        @Bean
-        public Validator validator() {
-            return jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator();
-        }
+    @BeforeEach
+    void setUp() {
+        handler = new GlobalExceptionHandler();
     }
-
-    @Autowired
-    private MockMvc mockMvc;
 
     @Test
-    void shouldReturnNotFoundWhenOrderMissing() throws Exception {
-        mockMvc.perform(get("/api/orders/" + UUID.randomUUID()))
-                .andExpect(status().isNotFound());
+    void shouldHandleInvalidPizzaException() {
+        InvalidPizzaException ex = new InvalidPizzaException("Pizza not available");
+        ResponseEntity<ApiError> response = handler.handleInvalidPizza(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Pizza not available");
+    }
+
+    @Test
+    void shouldHandleOrderNotFoundException() {
+        OrderNotFoundException ex = new OrderNotFoundException("Order not found");
+        ResponseEntity<ApiError> response = handler.handleOrderNotFound(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Order not found");
+    }
+
+    @Test
+    void shouldHandleNoPendingOrdersException() {
+        NoPendingOrdersException ex = new NoPendingOrdersException("Nothing to prepare");
+        ResponseEntity<ApiError> response = handler.handleNoPendingOrders(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Nothing to prepare");
+    }
+
+    @Test
+    void shouldHandleOrderCompletionException() {
+        OrderCompletionException ex = new OrderCompletionException("Cannot complete");
+        ResponseEntity<ApiError> response = handler.handleOrderCompletionFailure(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Cannot complete");
+    }
+
+    @Test
+    void shouldHandleIllegalArgumentException() {
+        IllegalArgumentException ex = new IllegalArgumentException("Invalid input");
+        ResponseEntity<ApiError> response = handler.handleIllegalArgument(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Invalid input");
+    }
+
+    @Test
+    void shouldHandleGenericException() {
+        RuntimeException ex = new RuntimeException("Unexpected error");
+        ResponseEntity<ApiError> response = handler.handleGeneric(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Unexpected error");
+    }
+
+    @Test
+    void shouldHandleValidationError() {
+        BindingResult bindingResult = mock(BindingResult.class);
+        FieldError fieldError = new FieldError("object", "field", "must not be null");
+        when(bindingResult.getFieldErrors()).thenReturn(List.of(fieldError));
+
+        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(null, bindingResult);
+        ResponseEntity<ApiError> response = handler.handleValidationError(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().details()).contains("field: must not be null");
     }
 }

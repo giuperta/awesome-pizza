@@ -3,16 +3,13 @@ package com.awesome.pizza.controller;
 import com.awesome.pizza.common.Constants;
 import com.awesome.pizza.dto.OrderRequest;
 import com.awesome.pizza.dto.PizzaOrderResponse;
-import com.awesome.pizza.exception.InvalidPizzaException;
 import com.awesome.pizza.factory.PizzaOrderResponseFactory;
 import com.awesome.pizza.model.PizzaOrder;
-import com.awesome.pizza.model.PizzaType;
 import com.awesome.pizza.service.OrderService;
-import com.awesome.pizza.validation.OrderValidation;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
@@ -48,18 +45,7 @@ public class OrderController {
     public ResponseEntity<PizzaOrderResponse> createOrder(@Valid @RequestBody OrderRequest request) {
         logger.info("Received new order request from customer '{}'", request.customerName());
 
-        try {
-            OrderValidation.validatePizzaList(request.pizzas());
-        } catch (InvalidPizzaException e) {
-            logger.warn("Validation failed: {}", e.getMessage());
-            throw e;
-        }
-
-        List<PizzaType> pizzaTypes = request.pizzas().stream()
-                .map(p -> PizzaType.valueOf(p.toUpperCase()))
-                .toList();
-
-        PizzaOrder order = orderService.createOrder(request.customerName(), pizzaTypes);
+        PizzaOrder order = orderService.createOrder(request.customerName(), request.pizzas());
         logger.info("Order {} created successfully", order.getId());
         return ResponseEntity.ok(PizzaOrderResponseFactory.from(order));
     }
