@@ -87,3 +87,18 @@ Esegui i test con:
 ```bash
 ./mvnw test
 ```
+
+## 🐳 Esecuzione con Docker
+Per costruire ed eseguire il progetto in un container Docker:
+
+## 🔨 Build dell'immagine
+```bash
+docker build -t awesome-pizza .
+```
+
+## 🚀 Avvio del container
+```bash
+docker run -p 8080:8080 awesome-pizza
+```
+
+L'applicazione sarà accessibile su http://localhost:8080
