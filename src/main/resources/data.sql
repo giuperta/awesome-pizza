@@ -1,0 +1,14 @@
+-- Insert sample pizza orders into PIZZA_ORDER
+INSERT INTO pizza_order (id, customer_name, status, created_at)
+VALUES
+  ('11111111-1111-1111-1111-111111111111', 'Mario Rossi', 'RECEIVED', CURRENT_TIMESTAMP),
+  ('22222222-2222-2222-2222-222222222222', 'Giulia Bianchi', 'IN_PREPARATION', CURRENT_TIMESTAMP),
+  ('33333333-3333-3333-3333-333333333333', 'Luca Verdi', 'READY', CURRENT_TIMESTAMP);
+
+-- Insert pizzas for each order into pizza_order_pizzas (join table)
+INSERT INTO pizza_order_pizzas (pizza_order_id, pizzas)
+VALUES
+  ('11111111-1111-1111-1111-111111111111', 'MARGHERITA'),
+  ('11111111-1111-1111-1111-111111111111', 'DIAVOLA'),
+  ('22222222-2222-2222-2222-222222222222', 'VEGETARIANA'),
+  ('33333333-3333-3333-3333-333333333333', 'QUATTRO_FORMAGGI');
