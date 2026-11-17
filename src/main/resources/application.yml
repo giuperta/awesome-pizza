@@ -1,8 +1,5 @@
 server:
   port: 8080
-  error:
-    include-message: always
-    include-binding-errors: always
 
 spring:
   application:
@@ -10,7 +7,7 @@ spring:
   main:
     banner-mode: console
   datasource:
-    url: jdbc:h2:file:./data/pizza-db
+    url: jdbc:h2:mem:pizza-db;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -21,7 +18,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    open-in-view: false
+    show-sql: false
+    properties:
+      # Loads the pizzas of a whole page of orders in one query instead of one per order
+      hibernate.default_batch_fetch_size: 50
 
 logging:
   level:
@@ -33,6 +34,5 @@ logging:
 springdoc:
   api-docs:
     path: /v3/api-docs
-
   swagger-ui:
     path: /swagger-ui
