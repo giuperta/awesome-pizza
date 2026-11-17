@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -24,19 +25,8 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void shouldHandleInvalidPizzaException() {
-        InvalidPizzaException ex = new InvalidPizzaException("Pizza not available");
-        ResponseEntity<ApiError> response = handler.handleInvalidPizza(ex);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().message()).isEqualTo("Pizza not available");
-    }
-
-    @Test
     void shouldHandleOrderNotFoundException() {
-        OrderNotFoundException ex = new OrderNotFoundException("Order not found");
-        ResponseEntity<ApiError> response = handler.handleOrderNotFound(ex);
+        ResponseEntity<ApiError> response = handler.handleOrderNotFound(new OrderNotFoundException("Order not found"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
@@ -44,29 +34,25 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void shouldHandleNoPendingOrdersException() {
-        NoPendingOrdersException ex = new NoPendingOrdersException("Nothing to prepare");
-        ResponseEntity<ApiError> response = handler.handleNoPendingOrders(ex);
+    void shouldHandleOrderCompletionExceptionAsConflict() {
+        ResponseEntity<ApiError> response = handler.handleOrderCompletionFailure(new OrderCompletionException("Cannot complete"));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().message()).isEqualTo("Nothing to prepare");
-    }
-
-    @Test
-    void shouldHandleOrderCompletionException() {
-        OrderCompletionException ex = new OrderCompletionException("Cannot complete");
-        ResponseEntity<ApiError> response = handler.handleOrderCompletionFailure(ex);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().message()).isEqualTo("Cannot complete");
     }
 
     @Test
+    void shouldHandleConcurrentUpdateAsConflict() {
+        ResponseEntity<ApiError> response = handler.handleConcurrentUpdate(
+                new ObjectOptimisticLockingFailureException("PizzaOrder", "id"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
     void shouldHandleIllegalArgumentException() {
-        IllegalArgumentException ex = new IllegalArgumentException("Invalid input");
-        ResponseEntity<ApiError> response = handler.handleIllegalArgument(ex);
+        ResponseEntity<ApiError> response = handler.handleIllegalArgument(new IllegalArgumentException("Invalid input"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
@@ -74,13 +60,13 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void shouldHandleGenericException() {
-        RuntimeException ex = new RuntimeException("Unexpected error");
-        ResponseEntity<ApiError> response = handler.handleGeneric(ex);
+    void shouldNotLeakInternalDetailsOnUnexpectedErrors() {
+        ResponseEntity<ApiError> response = handler.handleGeneric(new RuntimeException("db password is 1234"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().message()).isEqualTo("Unexpected error");
+        assertThat(response.getBody().details()).isEmpty();
     }
 
     @Test
