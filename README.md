@@ -1,104 +1,109 @@
 # 🍕 Awesome Pizza
 
-Awesome Pizza è un sistema di gestione ordini per una pizzeria, progettato come esercizio tecnico per un colloquio. Consente agli utenti non registrati di ordinare le pizze e al pizzaiolo di gestire la coda di preparazione tramite API REST, senza interfaccia grafica.
+![CI](https://github.com/giuperta/awesome-pizza/actions/workflows/ci.yml/badge.svg)
 
-## ✅ Obiettivi
+REST API for a pizzeria: customers order without registering and track their order; the pizzaiolo works through a **first-in, first-out queue** of orders.
 
-- Ordinare pizze senza autenticazione.
-- Gestione della coda da parte del pizzaiolo.
-- Tracciamento dello stato dell'ordine.
-- Progetto sviluppato con Java e Spring in ottica iterativa.
-- Copertura di test unitari.
+Java 21 · Spring Boot 3.5 · Spring Data JPA · H2 · Bean Validation · OpenAPI · JUnit 5 / Mockito / MockMvc
 
----
+## Features
 
-## 🛠️ Tecnologie usate
+- Order pizzas without authentication, with input validation (customer name, 1–20 pizzas from the menu).
+- Order tracking by ID: `RECEIVED → IN_PREPARATION → READY`.
+- Kitchen queue **paginated and filtered in the database**, oldest orders first.
+- Safe for more than one pizzaiolo: optimistic locking (`@Version`) stops two people taking the same order; the loser gets `409 Conflict` and can retry.
+- Consistent JSON errors with the right HTTP status (400, 404, 409), and no internal details leaked on 500.
+- Interactive API docs with Swagger UI.
 
-- Java 21
-- Spring Boot 3.5.0
-- Spring Web / Spring Validation / Spring Data JPA
-- H2 Database
-- Lombok
-- Swagger (Springdoc OpenAPI)
-- JUnit 5
-- Maven
+## API
 
----
+Base path: `/api/v1`
 
-## 🚀 Avvio del progetto
+| Method | Path | Who | Description |
+|---|---|---|---|
+| `POST` | `/orders` | Customer | Place an order → `201 Created` + `Location` header |
+| `GET` | `/orders/{id}` | Customer | Track an order |
+| `GET` | `/orders/menu` | Customer | Available pizzas |
+| `GET` | `/kitchen/orders` | Pizzaiolo | Queue of orders not yet ready (**paginated**) |
+| `POST` | `/kitchen/orders/next` | Pizzaiolo | Take the oldest `RECEIVED` order → `IN_PREPARATION` (`204` if the queue is empty) |
+| `POST` | `/kitchen/orders/{id}/complete` | Pizzaiolo | `IN_PREPARATION` → `READY` (`409` if the order is in another state) |
 
-1. **Clonare il repository**
-   ```bash
-   git clone https://github.com/giuperta/awesome-pizza.git
-   cd awesome-pizza
-   ```
+### Pagination
 
-2. **Avviare l'applicazione**
-   ```bash
-   ./mvnw spring-boot:run
-   ```
+`GET /api/v1/kitchen/orders?status=RECEIVED&page=0&size=20`
 
-3. **Interfacce disponibili**
-   - Swagger UI: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html) [http://localhost:8080/v3/api-docs] (http://localhost:8080/v3/api-docs)
-   - H2 Console: [http://localhost:8080/h2-console](http://localhost:8080/h2-console)
-     - JDBC URL: `jdbc:h2:mem:pizza-db`
-     - Username: `sa`, Password: *(vuota)*
+| Parameter | Default | Notes |
+|---|---|---|
+| `page` | `0` | zero-based |
+| `size` | `20` | 1–100 |
+| `status` | both | `RECEIVED` or `IN_PREPARATION` |
 
----
-
-## 📦 API disponibili
-
-### 🍕 Creazione di un ordine
-```http
-POST /orders
+```json
+{
+  "content": [
+    { "id": "6f1c…", "customerName": "Anna", "pizzas": ["MARGHERITA"], "status": "RECEIVED" }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true
+}
 ```
 
-### 🔍 Stato ordine
-```http
-GET /orders/{id}
-```
+The response uses an explicit `PageResponse` record rather than serializing Spring's `Page` directly, so the JSON contract stays stable across Spring versions.
 
-### 📋 Menu disponibile
-```http
-GET /orders/menu
-```
-
-### 👨‍🍳 Pizzaiolo - Visualizza coda ordini
-```http
-GET /kitchen/orders
-```
-
-### 🔄 Pizzaiolo - Passa all'ordine successivo
-```http
-POST /kitchen/orders/next
-```
-
-### ✅ Pizzaiolo - Completa ordine
-```http
-POST /kitchen/orders/{id}/complete
-```
-
----
-
-## 🧪 Test
-
-Esegui i test con:
+### Example
 
 ```bash
-./mvnw test
+curl -X POST http://localhost:8080/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerName":"Mario","pizzas":["MARGHERITA","DIAVOLA"]}'
 ```
 
-## 🐳 Esecuzione con Docker
-Per costruire ed eseguire il progetto in un container Docker:
+Error format:
 
-## 🔨 Build dell'immagine
+```json
+{ "status": 400, "message": "Validation failed", "timestamp": "2026-11-17T12:30:00", "details": ["size: must be less than or equal to 100"] }
+```
+
+## Run
+
+```bash
+./mvnw spring-boot:run
+```
+
+- Swagger UI: http://localhost:8080/swagger-ui
+- OpenAPI spec: http://localhost:8080/v3/api-docs
+- H2 console: http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:pizza-db`, user `sa`, empty password)
+
+### Docker
+
 ```bash
 docker build -t awesome-pizza .
-```
-
-## 🚀 Avvio del container
-```bash
 docker run -p 8080:8080 awesome-pizza
 ```
 
-L'applicazione sarà accessibile su http://localhost:8080
+## Tests
+
+```bash
+./mvnw verify      # tests + JaCoCo coverage report in target/site/jacoco
+```
+
+- Unit tests for the service and the error handling (Mockito).
+- Web layer tests with MockMvc (`@WebMvcTest`): status codes, validation, pagination parameters.
+- Repository tests (`@DataJpaTest`) for the paginated, filtered query.
+- An end-to-end test of the whole order lifecycle on the real application context.
+
+CI runs the full build on every push (GitHub Actions).
+
+## Project structure
+
+```
+controller/   REST endpoints
+service/      business rules and transactions
+repository/   Spring Data JPA queries
+model/        JPA entity and enums
+dto/          request/response records, PageResponse
+exception/    domain exceptions and global error handler
+```
