@@ -1,6 +1,5 @@
 package com.awesome.pizza.service;
 
-import com.awesome.pizza.exception.NoPendingOrdersException;
 import com.awesome.pizza.exception.OrderCompletionException;
 import com.awesome.pizza.exception.OrderNotFoundException;
 import com.awesome.pizza.model.OrderStatus;
@@ -9,10 +8,16 @@ import com.awesome.pizza.model.PizzaType;
 import com.awesome.pizza.repository.PizzaOrderRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -21,6 +26,13 @@ import java.util.stream.Stream;
  */
 @Service
 public class OrderService {
+
+    /** Orders the kitchen still has to work on. */
+    public static final Set<OrderStatus> PENDING_STATUSES =
+            EnumSet.of(OrderStatus.RECEIVED, OrderStatus.IN_PREPARATION);
+
+    /** The queue is always served first-in, first-out. */
+    private static final Sort QUEUE_ORDER = Sort.by(Sort.Direction.ASC, "createdAt");
 
     private static final Logger logger = LoggerFactory.getLogger(OrderService.class);
     private final PizzaOrderRepository orderRepository;
@@ -36,40 +48,46 @@ public class OrderService {
      * @param pizzas       the list of pizzas ordered
      * @return the created {@link PizzaOrder}
      */
+    @Transactional
     public PizzaOrder createOrder(String customerName, List<PizzaType> pizzas) {
-        PizzaOrder order = new PizzaOrder(customerName, pizzas);
-        logger.info("New order created with ID: {}", order.getId());
-        return orderRepository.save(order);
+        PizzaOrder order = new PizzaOrder(customerName.trim(), pizzas);
+        PizzaOrder saved = orderRepository.save(order);
+        logger.info("New order created with ID: {}", saved.getId());
+        return saved;
     }
 
     /**
      * Retrieves a pizza order by its ID.
      *
      * @param id the UUID of the order
-     * @return the found {@link PizzaOrder}
-     * @throws OrderNotFoundException if no order is found with the given ID
+     * @return the order, if it exists
      */
+    @Transactional(readOnly = true)
     public Optional<PizzaOrder> getOrder(UUID id) {
         return orderRepository.findById(id);
     }
 
     /**
-     * Retrieves all orders that are not yet marked as READY.
+     * Retrieves one page of the kitchen queue, oldest orders first.
      *
-     * @return a list of {@link PizzaOrder} pending orders
+     * @param status optional filter; when {@code null} all pending orders
+     *               (RECEIVED and IN_PREPARATION) are returned
+     * @param page   zero-based page index
+     * @param size   page size
+     * @return a page of {@link PizzaOrder}
      */
-    public List<PizzaOrder> getPendingOrders() {
-        return orderRepository.findAll().stream()
-                .filter(o -> o.getStatus() != OrderStatus.READY)
-                .toList();
+    @Transactional(readOnly = true)
+    public Page<PizzaOrder> getPendingOrders(OrderStatus status, int page, int size) {
+        Set<OrderStatus> statuses = status == null ? PENDING_STATUSES : EnumSet.of(status);
+        return orderRepository.findByStatusIn(statuses, PageRequest.of(page, size, QUEUE_ORDER));
     }
 
     /**
-     * Starts the next RECEIVED order by setting its status to IN_PREPARATION.
+     * Starts the next RECEIVED order (the oldest one) by setting its status to IN_PREPARATION.
      *
-     * @return the updated {@link PizzaOrder}
-     * @throws NoPendingOrdersException if no RECEIVED orders are available
+     * @return the updated order, or empty if the queue has no RECEIVED orders
      */
+    @Transactional
     public Optional<PizzaOrder> startNextOrder() {
         return orderRepository.findFirstByStatusOrderByCreatedAtAsc(OrderStatus.RECEIVED)
                 .map(order -> {
@@ -83,22 +101,24 @@ public class OrderService {
      * Marks a specific order as READY if it is currently IN_PREPARATION.
      *
      * @param id the UUID of the order to complete
-     * @return true if the order was successfully updated
-     * @throws OrderCompletionException if the order cannot be completed due to wrong state
+     * @return the updated order
      * @throws OrderNotFoundException   if the order with the given ID does not exist
+     * @throws OrderCompletionException if the order is not IN_PREPARATION
      */
-    public boolean completeOrder(UUID id) {
+    @Transactional
+    public PizzaOrder completeOrder(UUID id) {
         PizzaOrder order = orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException("Order with ID " + id + " not found"));
 
         if (order.getStatus() != OrderStatus.IN_PREPARATION) {
-            throw new OrderCompletionException("Order with ID " + id + " is not in IN_PREPARATION state");
+            throw new OrderCompletionException(
+                    "Order with ID " + id + " is " + order.getStatus() + ", only IN_PREPARATION orders can be completed");
         }
 
         order.setStatus(OrderStatus.READY);
-        orderRepository.save(order);
-        logger.info("Order {} marked as READY", order.getId());
-        return true;
+        PizzaOrder saved = orderRepository.save(order);
+        logger.info("Order {} marked as READY", id);
+        return saved;
     }
 
     /**
